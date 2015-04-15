@@ -5,6 +5,8 @@ Created on 2015. 4. 6.
 '''
 import sys
 from random import randint
+import abc
+
 
 EMPTY = 0
 PLAYER_X = 1
@@ -56,6 +58,9 @@ class gridBoard:
                     remains.append((i,j))
         return remains   
 
+    def isEmpty(self, i, j):
+        return self.board[i][j] == EMPTY
+
     # 
     def isGameOver(self):
         for i in range(3):
@@ -78,8 +83,20 @@ class gridBoard:
                 if self.board[i][j] == EMPTY:
                     return EMPTY
         return DRAW
-        
+
+"""
+GameAgent is ABSTRACT CLASS
+I found two methods for creating abstract class.
+
+1. http://stackoverflow.com/questions/372042/difference-between-abstract-class-and-interface-in-python
+    raise NotImplementedError("[play] method of GameAgent must be implemented.")
+2. use abc package
+    http://stackoverflow.com/questions/4382945/abstract-methods-in-python
+    http://pymotw.com/2/abc/
+"""
 class GameAgent(object):
+    __metaclass__ = abc.ABCMeta
+
     player_type = EMPTY
     def __init__(self, player_type):
         self.player_type = player_type
@@ -88,20 +105,75 @@ class GameAgent(object):
     def checkBoardObject(self, board):
         # you have to give gridBoard object
         if not isinstance(board, gridBoard):
-            exitWithError("You can give gridBoard object to the Agent")
+            exitWithError("You can give only gridBoard object to the Agent")
     
     def randomPlay(self, board):         
-        empties = board.getEmpty()  # get currently available cells 
-        idx = empties[randint(0,len(empties)-1)] # randomly choose one cell 
+        empties = board.getEmpty()  # get currently available cells
+        if len(empties) > 1:
+            idx = empties[randint(0, len(empties)-1)] # randomly choose one cell
+        else:
+            idx = empties[0]
         board.fillCell(self.player_type, idx[0], idx[1]) # conduct
-    
+
+    """
+    play
+
+    You have to implement this method in a class which is inherited from GameAgent.
+    Implementation changes depending on the kinds of agent.
+
+    RandomAgent :
+        Implement with purely random selection of grid position.
+    HumanAgent :
+        Require user a coordinate of grid position and do the play as it.
+    LearningAgent :
+        Mixture of policy iteration and random play.
+        Random play for exploration.
+        Policty Iteration for exploitation.
+    """
+    @abc.abstractmethod
     def play(self, board):
-        print 'You have to implement this'
+        return
+
+    """
+    report
+
+    You have to implement this method in a class which is inherited from GameAgent.
+    Implementation changes depending on the kinds of agent.
+
+    RandomAgent, HumanAgent:
+        Report the result.
+
+    LearningAgent :
+        Report the result.
+        Additionally you have to implement learning algorithm.
+    """
+    def report(self, result):
+        return
+
+
+    # def repeatTheResult(self, result):
+    #     msg = ""
+    #     if result is self.player_type:
+    #         msg = "player " + PLAYERS_NAMES[self.player_type] + " Win!!!"
+    #     elif result is DRAW:
+    #         msg = "Game Draw"
+    #     else:
+    #         msg = "player " + PLAYERS_NAMES[self.player_type] + " Loose..."
+    #
+    #     print msg
+
 
 class LearningAgent(GameAgent):
     def __init__(self, player_type):
         super(LearningAgent, self).__init__(player_type)
         print 'learning Agent'
+
+    def play(self, board):
+        self.checkBoardObject(board)
+
+    def report(self, result):
+        return
+
     
 class RandomAgent(GameAgent):
     def __init__(self, player_type):
@@ -111,7 +183,9 @@ class RandomAgent(GameAgent):
     def play(self, board):
         self.checkBoardObject(board)
         self.randomPlay(board)
-    
+
+    def report(self, result):
+        return
     
 class HumanAgent(GameAgent):
     def __init__(self, player_type):
@@ -121,32 +195,54 @@ class HumanAgent(GameAgent):
     def play(self, board):
         self.checkBoardObject(board)
         board.drawBoardState()
-        input = raw_input('Where do you want to take? ex) 1,0 ').split(',')
-        board.fillCell(self.player_type, int(input[0]), int(input[1]))
-        
+        while True:
+            input = raw_input('Where do you want to take? ex) 1,0 ').split(',')
+            if not board.isEmpty(int(input[0]), int(input[1])):
+                continue
+            board.fillCell(self.player_type, int(input[0]), int(input[1]))
+            break
+
+        def report(self, result):
+            return
         
 class Game:
-    def __init__(self):
+    player_x = None
+    player_o = None
+    grid_board = None
+    def __init__(self, _player_x, _player_o):
         print 'init Game'
+        self.player_x = _player_x
+        self.player_o = _player_o
+        self.grid_board = gridBoard()
 
+    def startGame(self):
+        # play single game
+        # if game state becomes one of [DRAW, PLAYER_O, PLAYER_X], iteration will stops.
+        for i in range(9):
+            self.player_x.play(self.grid_board)
+            self.grid_board.drawBoardState()
+            if self.grid_board.isGameOver() is not EMPTY:
+                break
+            self.player_o.play(self.grid_board)
+            self.grid_board.drawBoardState()
+            if self.grid_board.isGameOver() is not EMPTY:
+                break
+
+        # report the result to the players
+        result = self.grid_board.isGameOver()
+
+        if result in [PLAYER_X, PLAYER_O]:
+            print "Winner : Player " + PLAYERS_NAMES[result]
+        else:
+            print "Game DRAW"
+
+        self.player_x.report(result)
+        self.player_o.report(result)
 
 if __name__ == "__main__":
     board = gridBoard()
-    explorer = RandomAgent(PLAYER_O)
-    human = HumanAgent(PLAYER_X)
-    
-    explorer.play(board)
-    board.drawBoardState()
-    human.play(board)
-    board.drawBoardState()
-    explorer.play(board)
-    board.drawBoardState()
-    human.play(board)
-    board.drawBoardState()
-    
-    print 'Learning with Random Agent'
-    
-   
-    print 'Play game with human'
-    
+    agent1 = RandomAgent(PLAYER_X)
+    agent2 = RandomAgent(PLAYER_O)
+    game = Game(agent1, agent2)
+    game.startGame()
 
