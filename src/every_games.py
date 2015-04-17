@@ -180,21 +180,53 @@ class board_validation(object):
         self.validate_func = (self.case0, self.case1, self.case2, self.case3, self.case4,
                               self.case5, self.case6, self.case7, self.case8, self.case9)
 
+    def test(self, board, n_moves):
+        """
+        Check if board is valid or not when assuming that there are n_moves of movements
+        As the validation functions are different with n_moves, you should give a correct n_moves parameter.
+        :param board: a tuple of 3x3 board
+        :param n_moves: number of movements
+        :return: If valid, return True.
+                 Otherwise, return False
+        """
+        return self.validate_func[n_moves](board)
+
     def get_empty_board(self, as_tuple=False):
+        """
+        return an empty board as tuple or list
+        :param as_tuple: If True, return as tuple
+        :return: Otherwise, return as list
+        """
         if as_tuple:
             return ((EMPTY for _1 in range(3)) for _2 in range(3))
         return [[EMPTY for _1 in range(3)] for _2 in range(3)]
 
-    def convert_tuple_to_board(self, x_comb, o_comb):
+    def get_board(self, x_pos, o_pos):
+        """
+        Generate a tuple of board in size of 3x3 according to x_pos, o_pos.
+        x_pos and o_pos indicate indices of 'X' and 'O' in vector representation of board(row-major order).
+        ((0, 1, 2),
+         (3, 4, 5),
+         (6, 7, 8))
+        :param x_pos: Indices of position of 'X' marks
+        :param o_pos: Indices of position of 'O' marks
+        :return : A tuple of board(3x3)
+        """
         board = self.get_empty_board()
-        if x_comb:
-            for x in x_comb:
+        if x_pos:
+            for x in x_pos:
                 board[COORDINATES[x][0]][COORDINATES[x][1]] = PLAYER_X
-        if o_comb:
-            for o in o_comb:
+        if o_pos:
+            for o in o_pos:
                 board[COORDINATES[o][0]][COORDINATES[o][1]] = PLAYER_O
 
         return tuple(board[0]), tuple(board[1]), tuple(board[2])
+
+    """
+    ------------------------------------------------------------------------
+    Methods below this comment are not for calling from outside.
+    They are used only inside.
+    """
 
     def test_winner(self, board, target):
         for i in range(3):
@@ -211,9 +243,6 @@ class board_validation(object):
         if board[0][2]==target and board[1][1]==board[0][2] and board[2][0]==board[0][2]:
             return True
         return False
-
-    def test(self, board, n_moves):
-        return self.validate_func[n_moves](board)
 
     def case0(self, board):
         return True
@@ -249,8 +278,6 @@ class board_validation(object):
         # when there are 9 moves, player_o cannot win
         return not self.test_winner(board, PLAYER_O)
 
-
-
 class LearningAgent(GameAgent):
     values = {}
 
@@ -271,15 +298,15 @@ class LearningAgent(GameAgent):
             for comb in itertools.combinations(range(9), k):
                 for x_comb in itertools.combinations(comb, n_px):
                     o_comb = tuple(o for o in comb if o not in x_comb)
-                    board = validator.convert_tuple_to_board(x_comb, o_comb)
+                    board = validator.get_board(x_comb, o_comb)
                     if validator.test(board, k):
                         self.values[board] = 0.5
-                        cnt = cnt + 1
+                        cnt += 1
                     else:
-                        cnt_invalid = cnt_invalid + 1
+                        cnt_invalid += 1
 
             print "%d: %d\t\t%d"%(k, cnt, cnt_invalid)
-        print 'Size of state space is %d' % len(self.values) # number of possible board layout
+        print "Size of state space is %d" % len(self.values) # number of possible board layout
 
     def play(self, board):
         self.checkBoardObject(board)
@@ -287,7 +314,7 @@ class LearningAgent(GameAgent):
     def report(self, result):
         return
 
-    
+
 class RandomAgent(GameAgent):
     def __init__(self, player_type):
         super(RandomAgent, self).__init__(player_type)
