@@ -2,10 +2,15 @@
 Created on 2015. 4. 6.
 
 @author: jaejun
+
+references :
+Mathematical Analysis of Tic-Tac-Toe : http://www.mathrec.org/old/2002jan/solutions.html
+
 '''
 import sys
 from random import randint
 import abc
+import itertools
 
 
 EMPTY = 0
@@ -14,6 +19,7 @@ PLAYER_O = 2
 DRAW = 3
 
 PLAYERS_NAMES = [' ', 'X', 'O']
+COORDINATES = ((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2))
 
 def exitWithError(msg):
     _msg = "Error : %s"%msg
@@ -21,7 +27,7 @@ def exitWithError(msg):
 
 class gridBoard:
     board = []
-       
+    last_action = None
     def __init__(self):
         self.board = [[EMPTY for i in range(3)] for j in range(3)]
     
@@ -33,8 +39,13 @@ class gridBoard:
             exitWithError("Cell index(%d,%d) is out of range"%(i,j))
         if self.board[i][j]!=EMPTY:
             exitWithError("board[%d,%d] is already occupied"%(i,j))
-        
+
+        self.last_action = [i, j, s_des]
         self.board[i][j] = s_des
+
+    def undo(self):
+        if self.last_action:
+            self.board[self.last_action[0]][self.last_action[1]] = EMPTY
 
     def drawBoardState(self):# tested
         print '-'*10
@@ -44,17 +55,19 @@ class gridBoard:
                 print PLAYERS_NAMES[cell]+chr(124),
             print '\n',
         print '-'*10
-    
-    # return entire grid board
+
+    # return entire grid board in tuple
+    # return in tuple because list is not hashable type
     def getState(self):
-        return self.board   
-    
+        return tuple(self.board[0]), tuple(self.board[1]), tuple(self.board[2])
+
+
     # return a list of tuples which consists of index of available cells
     def getEmpty(self):
         remains = []
         for i in range(3):
             for j in range(3):
-                if self.board[i][j]==EMPTY:
+                if self.board[i][j] == EMPTY:
                     remains.append((i,j))
         return remains   
 
@@ -150,23 +163,123 @@ class GameAgent(object):
     def report(self, result):
         return
 
+# x_comb : (1,4,6) y_comb : (2,3,5)
+def validate_board_layout(x_comb = None, y_comb = None):
+    board = [[EMPTY for _1 in range(3)] for _2 in range(3)]
+    if x_comb:
+        for x in x_comb:
+            board[COORDINATES[x][0]][COORDINATES[x][1]] = PLAYER_X
 
-    # def repeatTheResult(self, result):
-    #     msg = ""
-    #     if result is self.player_type:
-    #         msg = "player " + PLAYERS_NAMES[self.player_type] + " Win!!!"
-    #     elif result is DRAW:
-    #         msg = "Game Draw"
-    #     else:
-    #         msg = "player " + PLAYERS_NAMES[self.player_type] + " Loose..."
-    #
-    #     print msg
+    if y_comb:
+        for y in y_comb:
+            board[COORDINATES[y][0]][COORDINATES[y][1]] = PLAYER_O
+
+class board_validation(object):
+    validate_func = None
+    def __init__(self):
+        self.validate_func = (self.case0, self.case1, self.case2, self.case3, self.case4,
+                              self.case5, self.case6, self.case7, self.case8, self.case9)
+
+    def get_empty_board(self, as_tuple=False):
+        if as_tuple:
+            return ((EMPTY for _1 in range(3)) for _2 in range(3))
+        return [[EMPTY for _1 in range(3)] for _2 in range(3)]
+
+    def convert_tuple_to_board(self, x_comb, o_comb):
+        board = self.get_empty_board()
+        if x_comb:
+            for x in x_comb:
+                board[COORDINATES[x][0]][COORDINATES[x][1]] = PLAYER_X
+        if o_comb:
+            for o in o_comb:
+                board[COORDINATES[o][0]][COORDINATES[o][1]] = PLAYER_O
+
+        return tuple(board[0]), tuple(board[1]), tuple(board[2])
+
+    def test_winner(self, board, target):
+        for i in range(3):
+            # check rows
+            if board[i][0]==target and board[i][1]==board[i][0] and board[i][2]==board[i][0]:
+                return True
+            # check columns
+            if board[0][i]==target and board[1][i]==board[0][i] and board[2][i]==board[0][i]:
+                return True
+
+        # check diagonals
+        if board[0][0]==target and board[1][1]==board[0][0] and board[2][2]==board[0][0]:
+            return True
+        if board[0][2]==target and board[1][1]==board[0][2] and board[2][0]==board[0][2]:
+            return True
+        return False
+
+    def test(self, board, n_moves):
+        return self.validate_func[n_moves](board)
+
+    def case0(self, board):
+        return True
+
+    def case1(self, board):
+        return True
+
+    def case2(self, board):
+        return True
+
+    def case3(self, board):
+        return True
+
+    def case4(self, board):
+        return True
+
+    def case5(self, board):
+        return True
+
+    def case6(self, board):
+        # when there are 7 moves, player_x(starter) cannot win
+        return not self.test_winner(board, PLAYER_X)
+
+    def case7(self, board):
+        # when there are 7 moves, player_o cannot win
+        return not self.test_winner(board, PLAYER_O)
+
+    def case8(self, board):
+        # when there are 8 moves, player_x(starter) cannot win
+        return not self.test_winner(board, PLAYER_X)
+
+    def case9(self, board):
+        # when there are 9 moves, player_o cannot win
+        return not self.test_winner(board, PLAYER_O)
+
 
 
 class LearningAgent(GameAgent):
+    values = {}
+
     def __init__(self, player_type):
         super(LearningAgent, self).__init__(player_type)
-        print 'learning Agent'
+        validator = board_validation()
+
+        self.values[validator.get_empty_board(as_tuple=True)] = 0.0
+
+        for k in range(1, 10):  #TODO: routine for setting up values of winning, loose, draw depending on self.player_type
+            if k % 2:
+                n_px = (k-1) / 2 + 1
+            else:
+                n_px = k / 2
+            n_po = k - n_px
+            cnt = 0
+            cnt_invalid = 0
+            for comb in itertools.combinations(range(9), k):
+                for x_comb in itertools.combinations(comb, n_px):
+                    o_comb = tuple(o for o in comb if o not in x_comb)
+                    board = validator.convert_tuple_to_board(x_comb, o_comb)
+                    if validator.test(board, k):
+                        self.values[board] = 0.5
+                        cnt = cnt + 1
+                    else:
+                        cnt_invalid = cnt_invalid + 1
+
+            print "%d: %d\t\t%d"%(k, cnt, cnt_invalid)
+        print 'Size of state space is %d' % len(self.values) # number of possible board layout
 
     def play(self, board):
         self.checkBoardObject(board)
@@ -241,8 +354,8 @@ class Game:
 
 if __name__ == "__main__":
     board = gridBoard()
-    agent1 = RandomAgent(PLAYER_X)
+    agent1 = LearningAgent(PLAYER_X)
     agent2 = RandomAgent(PLAYER_O)
-    game = Game(agent1, agent2)
-    game.startGame()
+    # game = Game(agent1, agent2)
+    # game.startGame()
 
